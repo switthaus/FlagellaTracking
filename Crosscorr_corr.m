@@ -1,4 +1,4 @@
-function [xhistory, yhistory, zhistory, r0, cropped] = Crosscorr_corr(hys, centroids)
+function [xoffset_fin, yoffset_fin, zoffset_fin, r0, cropped, Orientation] = Crosscorr_corr(hys, centroids, MajorAxis)
 
 data = load('img_T001.mat');
 I = data.Im_stack;
@@ -17,6 +17,7 @@ y_offset = cell(timepoints, 1);
 x_offset = cell(timepoints, 1);
 z_offset = cell(timepoints, 1);
 cropped = cell(timepoints, 1);
+
 for kk = 1:timepoints
     Ihelp = load(sprintf('img_T%03d.mat', kk));
     images{kk} = Ihelp.Im_stack;
@@ -37,34 +38,44 @@ end
 %Find Closest Centroid
 
 %[minValue,closestIndex] = min(abs(X_cen-centroids_real(:, 1)));
-closestIndex = findclosestcentroid(X_cen/dx, Y_cen/dy, Z_cen/dz, centroids, 1);
+closestIndex = zeros(1, size(X_cen, 2));
+r0 = zeros(size(X_cen, 2), 3);
+Orientation = cell(timepoints, size(X_cen, 2)); 
+for i =1:size(X_cen, 2)
+    closestIndex(i) = findclosestcentroid(X_cen(i)/dx, Y_cen(i)/dy, Z_cen(i)/dz, centroids, 1);
+    r0(i, :) = [centroids{1}{closestIndex(i), 1}(1)*dx, centroids{1}{closestIndex(i), 1}(2)*dy, centroids{1}{closestIndex(i), 1}(3)*dz];
+    X_cen(i) = centroids{1}{closestIndex(i), 1}(1);
+    Y_cen(i) = centroids{1}{closestIndex(i), 1}(2);
+    Z_cen(i) = centroids{1}{closestIndex(i), 1}(3);
+
+    Xr_cen(i) = round(X_cen(i));
+    Yr_cen(i) = round(Y_cen(i));
+    Zr_cen(i) = round(Z_cen(i));
+end
 display(closestIndex)
 %closestIndex = 221;
-r0 = [centroids{1}{closestIndex, 1}(1)*dx, centroids{1}{closestIndex, 1}(2)*dy, centroids{1}{closestIndex, 1}(3)*dz];
+%r0 = [centroids{1}{closestIndex, 1}(1)*dx, centroids{1}{closestIndex, 1}(2)*dy, centroids{1}{closestIndex, 1}(3)*dz];
 
-X_cen = centroids{1}{closestIndex, 1}(1);
-Y_cen = centroids{1}{closestIndex, 1}(2);
-Z_cen = centroids{1}{closestIndex, 1}(3);
 
-Xr_cen = round(X_cen);
-Yr_cen = round(Y_cen);
-Zr_cen = round(Z_cen);
 
 for kk = 1:(timepoints-1)
-    for ii = 1:size(X_cen, 1)
-        
+    counter = 1;
+    for ii = 1:size(X_cen, 2)
         % Find location of Flagella at timeframe = kk
         if kk>1
-            xhistory = cell2mat(x_offset);
-            yhistory = cell2mat(y_offset);
-            zhistory = cell2mat(z_offset);
-            X_cen = X_cen + xhistory(end, ii);
-            Y_cen = Y_cen + yhistory(end, ii);
-            Z_cen = Z_cen + zhistory(end, ii);
-            Xr_cen(ii) = round(X_cen);
-            Yr_cen(ii) = round(Y_cen);
-            Zr_cen(ii) = round(Z_cen);
+            xhistory = cell2mat(x_offset(kk-1));
+            yhistory = cell2mat(y_offset(kk-1));
+            zhistory = cell2mat(z_offset(kk-1));
+            X_cen(ii) = X_cen(ii) + xhistory(end, ii);
+            Y_cen(ii) = Y_cen(ii) + yhistory(end, ii);
+            Z_cen(ii) = Z_cen(ii) + zhistory(end, ii);
+            Xr_cen(ii) = round(X_cen(ii));
+            Yr_cen(ii) = round(Y_cen(ii));
+            Zr_cen(ii) = round(Z_cen(ii));
         end
+        idx = findclosestcentroid(X_cen(ii), Y_cen(ii), Z_cen(ii), centroids, kk);
+        display(MajorAxis{kk}{idx})
+        Orientation{kk, counter} = MajorAxis{kk}(idx);
         p1 = 10; p2 = 10; p3 = 10; p4 = 10; satisfied = 0;
         while ~ satisfied
             % Increase search area until flagella fully inside
@@ -183,13 +194,13 @@ for kk = 1:(timepoints-1)
         r = Zr_newcen_lower:0.1:Zr_newcen_upper;
         func = p(1)*r.^2+p(2)*r+p(3);
         [argmax1, argval1] = max(func);
-        z_offset{kk}(ii) = (r(argval1)-Z_cen);
+        z_offset{kk}(ii) = (r(argval1)-Z_cen(ii));
         y_offset{kk}(ii) = (Y_peak-Y_peak_first);
         x_offset{kk}(ii) = (X_peak-X_peak_first);
-    
+        counter = counter+1;
     end
 end
 
-xhistory = cell2mat(x_offset);
-yhistory = cell2mat(y_offset);
-zhistory = cell2mat(z_offset);
+xoffset_fin = x_offset;
+yoffset_fin = y_offset;
+zoffset_fin = z_offset;
