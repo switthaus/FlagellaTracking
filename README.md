@@ -9,4 +9,8 @@ For this, one will need one reptation directory, and a directory for saving the 
 
 4. The function Crosscorr_corr.mat, will calculate the displacement of the the flagella at each timepoint using crosscorrelation. Here, after running [xflagella, yflagella, zflagella, r0, cropped, Orientation] = Crosscorr_corr(hys, centroids, MajorAxis), we will obtain the displacement of x, y and z in a MATLAB cell, together with the initial poition for each Flagella we decided to track and it's Orientation as a function of time.
 
-To do: Speed up Thresholding Algorithm by either rewriting hysteresis for sparse matrices or cropping the field of view so that it only thresholds small regions of space.
+To do: 1)Speed up Thresholding Algorithm by either rewriting hysteresis for sparse matrices or cropping the field of view so that it only thresholds small regions of space.
+2) Using fitting methods to ascribe a phase to flagella and track the phase over time
+
+
+Update 08/14: Sped up theresholding a bit by using sparse matrices. SparseMatrices.mat runs about 3 times faster than normal hysteresis. The function FindCentroids is still quite slow though.
