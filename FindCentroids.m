@@ -4,7 +4,7 @@ DIR = dataFolder;
 %Make sure to not use dir twice
 S = dir(fullfile(DIR, 'img_*.mat'));
 timepoints = numel(S);
-timepoints = 30;
+timepoints = 10;
 Labels = cell(timepoints, 1);
 s1 = cell(timepoints, 1);
 hys = cell(timepoints, 1);
@@ -12,7 +12,7 @@ I_bg = cell(timepoints, 1);
 hysfin = cell(timepoints, 1);
 
 for k = 1:timepoints
-
+    
     data = load(sprintf('img_T%03d.mat', k));
     I = data.Im_stack;
     I1 = zeros(2044, 2048, size(I, 1));
@@ -28,19 +28,23 @@ for k = 1:timepoints
     clear I_try
     clear I_new
     %Threshold in 3D
-    [tri, hys] = hysteresis3d(I1, 0.23, 0.28, 26);
+    [hys] = SparseHysteresis(I1, 0.19, 0.23);
+    hysfinal = zeros(size(I1));
+    for i =1:size(hys, 1)
+        hysfinal(:, :, i) = hys{i}(:, :);
+    end
+    %[tri, hys] = hysteresis3d(I1, 0.23, 0.28, 26);
     % Find Centroids and Orientations
-    Labels = bwlabeln(hys);
+    Labels = bwlabeln(hysfinal);
     s1{k, 1} = regionprops3a(Labels,'Centroid', 'MajorAxis', 'MajorAxisLenght');
     
     for i =1:size(I1, 3)
-        hysfin{k}{i} = sparse(double(hys(:, :, i)));
+        hysfin{k}{i} = sparse(double(hysfinal(:, :, i)));
     end
-    
-    clear tri
+
     clear hys
     clear I1
-    
+    display(sprintf('Finished frame number %.01d', k))
 end
 
 centroids = cell(timepoints, 1);
