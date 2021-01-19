@@ -1,4 +1,12 @@
-function [xoffset_fin, yoffset_fin, zoffset_fin, r0, cropped, Orientation] = Crosscorr_corr(hys, centroids, MajorAxis)
+function [xoffset_fin, yoffset_fin, zoffset_fin, r0, cropped, Orientation, crosscorr] = Crosscorr_corr(hys, centroids, MajorAxis)
+
+% Crosscorrelation code: Choose a flagella and get its centroid. Next, find 
+% its cropped picture, and then crosscorrelate this into the next frame. 
+% To get how much it has been displaced in z, crosscorrelate it to all
+% other frames in z as well. By getting the value of the crosscorrelation,
+% we can fit a parabola and get exactly how much it was displaced in z.
+% From this, we can infer where the flagellum is now and find its closest
+% centroid (in the new frame). 
 
 data = load('img_T001.mat');
 I = data.Im_stack;
@@ -9,8 +17,7 @@ z = size(I, 1);
 
 dx = 0.1625 ;dy=0.1625; dz = 0.3;
 
-timepoints = 20;%numel(centroids);
-cd C:\Users\Switthaus\Documents\MATLAB\Dogic\Flagella\Stacks_rep3
+timepoints = 2;%numel(centroids);
 times_it_happened = zeros(timepoints, 1);
 images = cell(timepoints, 1);
 y_offset = cell(timepoints, 1);
@@ -22,39 +29,20 @@ for kk = 1:timepoints
     Ihelp = load(sprintf('img_T%03d.mat', kk));
     images{kk} = Ihelp.Im_stack;
 end
-crosscorr = cell(timepoints, 1);
-X_cen = input('Input x coordinate(s) of Flagella to track: ');
-Y_cen = input('Input y coordinate(s) of Flagella to track: ');
-Z_cen = input('Input z coordinate(s) of Flagella to track: ');
-if size(X_cen) ~= size(Y_cen)
-    display('Sizes of x and y must agree')
-    X_cen = input('Input x coordinate(s) of Flagella to track: ');
-    Y_cen = input('Input y coordinate(s) of Flagella to track: ');
-        
-end
-
 
 
 %Find Closest Centroid
 
 %[minValue,closestIndex] = min(abs(X_cen-centroids_real(:, 1)));
-closestIndex = zeros(1, size(X_cen, 2));
-r0 = zeros(size(X_cen, 2), 3);
-Orientation = cell(timepoints, size(X_cen, 2)); 
-for i =1:size(X_cen, 2)
-    closestIndex(i) = findclosestcentroid(X_cen(i)/dx, Y_cen(i)/dy, Z_cen(i)/dz, centroids, 1);
-    r0(i, :) = [centroids{1}{closestIndex(i), 1}(1)*dx, centroids{1}{closestIndex(i), 1}(2)*dy, centroids{1}{closestIndex(i), 1}(3)*dz];
-    X_cen(i) = centroids{1}{closestIndex(i), 1}(1);
-    Y_cen(i) = centroids{1}{closestIndex(i), 1}(2);
-    Z_cen(i) = centroids{1}{closestIndex(i), 1}(3);
+closestIndex = 221;
+r0 = [centroids{1}{closestIndex, 1}(1)*dx, centroids{1}{closestIndex, 1}(2)*dy, centroids{1}{closestIndex, 1}(3)*dz];
+X_cen = r0(1);
+Y_cen = r0(2);
+Z_cen = r0(3);
 
-    Xr_cen(i) = round(X_cen(i));
-    Yr_cen(i) = round(Y_cen(i));
-    Zr_cen(i) = round(Z_cen(i));
-end
-display(closestIndex)
-%closestIndex = 221;
-%r0 = [centroids{1}{closestIndex, 1}(1)*dx, centroids{1}{closestIndex, 1}(2)*dy, centroids{1}{closestIndex, 1}(3)*dz];
+Xr_cen = round(X_cen);
+Yr_cen = round(Y_cen);
+Zr_cen = round(Z_cen);
 
 
 
@@ -72,13 +60,17 @@ for kk = 1:(timepoints-1)
             Xr_cen(ii) = round(X_cen(ii));
             Yr_cen(ii) = round(Y_cen(ii));
             Zr_cen(ii) = round(Z_cen(ii));
+        else
+            Xr_cen(ii) = round(X_cen(ii));
+            Yr_cen(ii) = round(Y_cen(ii));
+            Zr_cen(ii) = round(Z_cen(ii));
         end
         idx = findclosestcentroid(X_cen(ii), Y_cen(ii), Z_cen(ii), centroids, kk);
-        display(MajorAxis{kk}{idx})
+        %display(MajorAxis{kk}{idx})
         Orientation{kk, counter} = MajorAxis{kk}(idx);
         p1 = 10; p2 = 10; p3 = 10; p4 = 10; satisfied = 0;
+        % Increase search area until flagella fully inside
         while ~ satisfied
-            % Increase search area until flagella fully inside
             lowlimit1 = Yr_cen(ii)-p4; lowlimit2 = Xr_cen(ii)-p1;
             uplimit1 = Yr_cen(ii)+p3; uplimit2 = Xr_cen(ii)+p2;
             if lowlimit1 <= 0
@@ -124,7 +116,8 @@ for kk = 1:(timepoints-1)
             satisfied = 1;
             
         end
-        %Create search area for next frame
+        
+        %Create search area (bigger box) for next frame
         lowlimit_new1 = Yr_cen(ii)-p4-50; lowlimit_new2 = Xr_cen(ii)-p1-50;
         uplimit_new1 = Yr_cen(ii)+p3+50; uplimit_new2 = Xr_cen(ii)+p2+50;
         
@@ -154,6 +147,8 @@ for kk = 1:(timepoints-1)
             Zr_newcen_upper = 31;
         end
         croppednextframe = cell(31, 1);
+        
+        
         % Find at what z-value cross-correlation is greatest.
         
         for j = Zr_newcen_lower:Zr_newcen_upper
@@ -167,7 +162,7 @@ for kk = 1:(timepoints-1)
         helpcrosscorr = normxcorr2(croppedim, croppedhelp);
         [Y_peak_first, X_peak_first] = find(helpcrosscorr(:, :)==max(helpcrosscorr(:)));
         [Y_peak, X_peak] = find(crosscorr{kk}{ii}{argmax}(:, :)==max(crosscorr{kk}{ii}{argmax}(:)));
-        
+        display(argmax)
         % Take the peaks found and fit polynomial through values to find
         % exact z-displacement
         data = zeros(35, 1);
@@ -177,6 +172,9 @@ for kk = 1:(timepoints-1)
         [arg, val] = max(data);
         valmin = val-1;
         valmax = val+1;
+        
+        % Fit a parabola to the crosscorrelation to find real displacement
+        % due to limited resolution in z; Upper and lower limits exist.
         if valmin>0 && valmax<36
             p = polyfit([val-1, val, val+1]', data((val-1):(val+1)), 2);
         end
@@ -194,6 +192,9 @@ for kk = 1:(timepoints-1)
         r = Zr_newcen_lower:0.1:Zr_newcen_upper;
         func = p(1)*r.^2+p(2)*r+p(3);
         [argmax1, argval1] = max(func);
+        
+        % Save offsets
+        
         z_offset{kk}(ii) = (r(argval1)-Z_cen(ii));
         y_offset{kk}(ii) = (Y_peak-Y_peak_first);
         x_offset{kk}(ii) = (X_peak-X_peak_first);
