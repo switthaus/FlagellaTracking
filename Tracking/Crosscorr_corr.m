@@ -1,4 +1,4 @@
-function [xoffset_fin, yoffset_fin, zoffset_fin, r0, cropped, Orientation, crosscorr] = Crosscorr_corr(hys, centroids, MajorAxis)
+function [xoffset_fin, yoffset_fin, zoffset_fin, r0, cropped, Orientation, crosscorr] = Crosscorr_corr(hys, centroids, MajorAxis, timepoints)
 
 % Crosscorrelation code: Choose a flagella and get its centroid. Next, find 
 % its cropped picture, and then crosscorrelate this into the next frame. 
@@ -17,7 +17,6 @@ z = size(I, 1);
 
 dx = 0.1625 ;dy=0.1625; dz = 0.3;
 
-timepoints = 2;%numel(centroids);
 times_it_happened = zeros(timepoints, 1);
 images = cell(timepoints, 1);
 y_offset = cell(timepoints, 1);
@@ -34,89 +33,48 @@ end
 %Find Closest Centroid
 
 %[minValue,closestIndex] = min(abs(X_cen-centroids_real(:, 1)));
-closestIndex = 221;
-r0 = [centroids{1}{closestIndex, 1}(1)*dx, centroids{1}{closestIndex, 1}(2)*dy, centroids{1}{closestIndex, 1}(3)*dz];
-X_cen = r0(1);
-Y_cen = r0(2);
-Z_cen = r0(3);
 
-Xr_cen = round(X_cen);
-Yr_cen = round(Y_cen);
-Zr_cen = round(Z_cen);
+[Xr_cen, Yr_cen, Zr_cen] = getIndices(X, Y, Z, hys, 1);
+display([Xr_cen, Yr_cen])
+for i = 1:size(Xr_cen, 1)
+    idx(i) = findclosestcentroid(Xr_cen(i), Yr_cen(i), Zr_cen(i), centroids, 1);
+end
+r0=zeros(size(idx, 2), 3);
 
-
+for i=1:size(idx, 2)
+    r0(i, :) = centroids{1}{idx(i), :};
+end
+for i = 1:timepoints
+    cropped{kk} = cell(size(Xr_cen));
+end
 
 for kk = 1:(timepoints-1)
     counter = 1;
-    for ii = 1:size(X_cen, 2)
+    for ii = 1:size(Xr_cen, 1)
         % Find location of Flagella at timeframe = kk
         if kk>1
             xhistory = cell2mat(x_offset(kk-1));
             yhistory = cell2mat(y_offset(kk-1));
             zhistory = cell2mat(z_offset(kk-1));
-            X_cen(ii) = X_cen(ii) + xhistory(end, ii);
-            Y_cen(ii) = Y_cen(ii) + yhistory(end, ii);
-            Z_cen(ii) = Z_cen(ii) + zhistory(end, ii);
-            Xr_cen(ii) = round(X_cen(ii));
-            Yr_cen(ii) = round(Y_cen(ii));
-            Zr_cen(ii) = round(Z_cen(ii));
-        else
+            X_cen(ii) = Xr_cen(ii) + xhistory(end, ii);
+            Y_cen(ii) = Yr_cen(ii) + yhistory(end, ii);
+            Z_cen(ii) = Zr_cen(ii) + zhistory(end, ii);
             Xr_cen(ii) = round(X_cen(ii));
             Yr_cen(ii) = round(Y_cen(ii));
             Zr_cen(ii) = round(Z_cen(ii));
         end
-        idx = findclosestcentroid(X_cen(ii), Y_cen(ii), Z_cen(ii), centroids, kk);
+        %display([ii, Xr_cen(ii), Yr_cen(ii), Zr_cen(ii)])
+        idx = findclosestcentroid(Xr_cen(ii), Yr_cen(ii), Zr_cen(ii), centroids, kk);
         %display(MajorAxis{kk}{idx})
+        X_cen(ii) = centroids{kk}{idx, :}(1); Y_cen(ii)=centroids{kk}{idx, :}(2); Z_cen(ii)=centroids{kk}{idx, :}(3);
         Orientation{kk, counter} = MajorAxis{kk}(idx);
-        p1 = 10; p2 = 10; p3 = 10; p4 = 10; satisfied = 0;
-        % Increase search area until flagella fully inside
-        while ~ satisfied
-            lowlimit1 = Yr_cen(ii)-p4; lowlimit2 = Xr_cen(ii)-p1;
-            uplimit1 = Yr_cen(ii)+p3; uplimit2 = Xr_cen(ii)+p2;
-            if lowlimit1 <= 0
-                lowlimit1 = 1;
-            end
-            if lowlimit2 <= 0
-                lowlimit2 = 1;
-            end
-            if uplimit1 >= 2045
-                uplimit1 = 2044;
-            end
-            if uplimit2 >= 2045
-                uplimit2 = 2044; 
-            end
-            % Save cropped image and BW image
-            cropped{kk} = full(hys{kk}{Zr_cen(ii)}(lowlimit1:uplimit1, lowlimit2:uplimit2));
-            croppedim = images{kk}{Zr_cen(ii)}(lowlimit1:uplimit1, lowlimit2:uplimit2);
-            if isempty(cropped{kk})
-                display('Flagella out of frame')
-            end
-            
-            if lowlimit1==1 | lowlimit2==1 | uplimit1==512 | uplimit2 == 512
-                times_it_happened(kk) = times_it_happened(kk)+1;
-                satisfied = 1;
-            end
-            if any(1==cropped{kk}(:, 1, 1))
-                p1 = p1+1;
-                continue
-            end
-            if any(1==cropped{kk}(:, end, 1))
-                p2 = p2+1;
-                continue
-            end
-            if any(1==cropped{kk}(1, :, 1))
-                p4 = p4+1;
-                continue
-            end
-            if any(1==cropped{kk}(end, :, 1))
-                p3 = p3+1;
-                continue
-            end
-            
-            satisfied = 1;
-            
-        end
+        %display([ii, X_cen(ii), Y_cen(ii), Z_cen(ii)])
         
+        Xr_cen(ii) = round(X_cen(ii));
+        Yr_cen(ii) = round(Y_cen(ii));
+        Zr_cen(ii) = round(Z_cen(ii));
+        [cropped{kk}{ii}, croppedim, p] = CropFlagellum(Xr_cen(ii), Yr_cen(ii), Zr_cen(ii), hys{kk}{Zr_cen(ii)}, images{kk}{Zr_cen(ii)}); 
+        p1 = p(1); p2 = p(2); p3 = p(3); p4 = p(4);
         %Create search area (bigger box) for next frame
         lowlimit_new1 = Yr_cen(ii)-p4-50; lowlimit_new2 = Xr_cen(ii)-p1-50;
         uplimit_new1 = Yr_cen(ii)+p3+50; uplimit_new2 = Xr_cen(ii)+p2+50;
@@ -162,7 +120,7 @@ for kk = 1:(timepoints-1)
         helpcrosscorr = normxcorr2(croppedim, croppedhelp);
         [Y_peak_first, X_peak_first] = find(helpcrosscorr(:, :)==max(helpcrosscorr(:)));
         [Y_peak, X_peak] = find(crosscorr{kk}{ii}{argmax}(:, :)==max(crosscorr{kk}{ii}{argmax}(:)));
-        display(argmax)
+        %display(argmax)
         % Take the peaks found and fit polynomial through values to find
         % exact z-displacement
         data = zeros(35, 1);
@@ -200,6 +158,7 @@ for kk = 1:(timepoints-1)
         x_offset{kk}(ii) = (X_peak-X_peak_first);
         counter = counter+1;
     end
+    display(sprintf('Finished frame %01i', kk))
 end
 
 xoffset_fin = x_offset;
